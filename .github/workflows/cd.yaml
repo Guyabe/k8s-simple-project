@@ -32,5 +32,9 @@ jobs:
           port: 22
           script: |
             cd ~/repo/k8s-manifests
+            
+            kubectl create ns pyui || true
 
-            # TODO: deploy k8s yaml
+            kubectl apply -f configmap.yaml
+            kubectl apply -f deployment.yaml
+            kubectl apply -f service.yaml
