@@ -1,0 +1,69 @@
+name: Install Kind Cluster on EC2
+run-name: Install Kind on EC2
+
+on:
+  workflow_dispatch:
+    inputs:
+      EC2_IP:
+        description: "The ip address of the kind ec2 instance"
+        required: true
+
+jobs:
+  install-kind:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Install Kind on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ inputs.EC2_IP }}
+          username: ec2-user
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            # Update system packages
+            sudo yum update -y
+
+            # Install Docker
+            sudo yum install -y docker
+            sudo systemctl start docker
+            sudo systemctl enable docker
+            sudo usermod -aG docker $USER
+            newgrp docker
+            sudo chmod 666 /var/run/docker.sock
+            
+            # Install Kind
+            curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+            chmod +x ./kind
+            sudo mv ./kind /usr/local/bin/kind
+
+            # Install kubectl
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x ./kubectl
+            sudo mv ./kubectl /usr/local/bin/kubectl
+
+            # Verify installations
+            docker --version
+            kind --version
+            kubectl version --client
+
+            # Create a Kind cluster
+            kind create cluster --name kind-cluster --config - <<EOF
+            kind: Cluster
+            apiVersion: kind.x-k8s.io/v1alpha4
+            nodes:
+              - role: control-plane
+                extraPortMappings:
+                  - containerPort: 80
+                    hostPort: 80
+                  - containerPort: 30080
+                    hostPort: 30090
+                    protocol: TCP
+            EOF
+            
+            # verify cluster
+            kubectl cluster-info --context kind-kind-cluster
+
